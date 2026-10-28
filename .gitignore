@@ -1,22 +1,28 @@
-﻿# Maven
+# Java / Maven
 target/
+*.class
+*.jar
 !.mvn/wrapper/maven-wrapper.jar
+*.log
+HELP.md
 
-# IDE
+# IDEs
 .idea/
 *.iml
+*.iws
+*.ipr
 .vscode/
 .classpath
 .project
 .settings/
+.factorypath
+.apt_generated
+.sts4-cache
 
-# Logs
-*.log
-
-# OS
+# Sistema operativo
 .DS_Store
 Thumbs.db
 
-# Variables de entorno / secretos (Fase 2 y 3)
+# Variables de entorno / secretos
 .env
-application-local.properties
+*.env

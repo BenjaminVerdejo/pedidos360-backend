@@ -1,0 +1,41 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: rabbit-admin-service
+  # --- Conexion a RabbitMQ (credenciales por variables de entorno) ---
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:admin}
+    password: ${RABBIT_PASSWORD:admin123}
+  # --- Validacion del JWT de Azure AD (IDaaS) ---
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/015cad58-1396-4898-9f0a-4cb1e1191c38/v2.0
+          audiences: 82adc866-3948-44f8-993d-5658734ad794
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  admin:
+    # Topologia propia de pedidos-service: la API no permite borrarla
+    # para no romper el sistema en produccion.
+    protegidos:
+      colas:
+        - notificaciones.queue
+        - notificaciones.dlq
+        - tickets.queue
+        - tickets.dlq
+      exchanges:
+        - pedidos.exchange
+        - pedidos.dlx
