@@ -31,8 +31,8 @@ public class NotificacionService {
         }
 
         String asunto = switch (evento.tipo()) {
-            case "PEDIDO_CREADO" -> "Recibimos tu pedido #" + evento.pedidoId();
-            case "PEDIDO_ESTADO_CAMBIADO" -> "Tu pedido #" + evento.pedidoId() + " cambio a " + evento.estado();
+            case PedidoEvento.PEDIDO_CREADO -> "Recibimos tu pedido #" + evento.pedidoId();
+            case PedidoEvento.PEDIDO_ESTADO_CAMBIADO -> "Tu pedido #" + evento.pedidoId() + " cambio a " + evento.estado();
             default -> throw new ErrorNoRecuperableException("Tipo de evento desconocido: " + evento.tipo());
         };
 

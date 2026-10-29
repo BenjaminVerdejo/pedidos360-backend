@@ -37,7 +37,7 @@ class ConfirmadorMensajesTest {
                     }
                     return null;
                 });
-        MensajeriaProperties props = new MensajeriaProperties("ex", "dlx", null, null, null,
+        MensajeriaProperties props = new MensajeriaProperties("ex", "direct", "dlx", null, null, null, null,
                 new MensajeriaProperties.Consumidor(10, 2, 0));
         confirmador = new ConfirmadorMensajes(props);
     }

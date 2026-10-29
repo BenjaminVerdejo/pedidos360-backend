@@ -24,11 +24,13 @@ import org.springframework.context.annotation.Configuration;
  * Flujo:
  *   pedidos.exchange (topic) --pedido.#------> notificaciones.queue --(rechazo)--> pedidos.dlx --> notificaciones.dlq
  *   pedidos.exchange (topic) --pedido.creado-> tickets.queue        --(rechazo)--> pedidos.dlx --> tickets.dlq
+ *   pedidos.direct  (direct) --pedido.entregado-> documentos.queue  --(rechazo)--> pedidos.dlx --> documentos.dlq
  *
  * Rutas de mensajeria (caso de uso -> productor -> cola -> consumidor):
  *   1. Notificar al cliente    : PedidoEventPublisher -> notificaciones.queue -> NotificacionConsumer
  *   2. Generar ticket/documento: PedidoEventPublisher -> tickets.queue        -> TicketConsumer
- *   3. Mensajes fallidos       : (nack sin requeue)   -> *.dlq                -> DeadLetterConsumer (log)
+ *   3. Comprobante de entrega  : PedidoEventPublisher -> documentos.queue     -> DocumentoConsumer
+ *   4. Mensajes fallidos       : (nack sin requeue)   -> *.dlq                -> DeadLetterConsumer (log)
  */
 @Configuration
 @EnableConfigurationProperties(MensajeriaProperties.class)
@@ -38,6 +40,11 @@ public class RabbitConfig {
     @Bean
     public TopicExchange pedidosExchange(MensajeriaProperties p) {
         return new TopicExchange(p.exchange(), true, false);
+    }
+
+    @Bean
+    public DirectExchange pedidosDirectExchange(MensajeriaProperties p) {
+        return new DirectExchange(p.directExchange(), true, false);
     }
 
     @Bean
@@ -95,6 +102,32 @@ public class RabbitConfig {
     @Bean
     public Binding ticketsDlqBinding(Queue ticketsDlq, DirectExchange deadLetterExchange, MensajeriaProperties p) {
         return BindingBuilder.bind(ticketsDlq).to(deadLetterExchange).with(p.tickets().dlq());
+    }
+
+    // ---------- Documentos (exchange DIRECT) ----------
+    @Bean
+    public Queue documentosQueue(MensajeriaProperties p) {
+        return QueueBuilder.durable(p.documentos().queue())
+                .deadLetterExchange(p.dlx())
+                .deadLetterRoutingKey(p.documentos().dlq())
+                .build();
+    }
+
+    @Bean
+    public Queue documentosDlq(MensajeriaProperties p) {
+        return QueueBuilder.durable(p.documentos().dlq()).build();
+    }
+
+    @Bean
+    public Binding documentosBinding(Queue documentosQueue, DirectExchange pedidosDirectExchange,
+                                     MensajeriaProperties p) {
+        return BindingBuilder.bind(documentosQueue).to(pedidosDirectExchange).with(p.documentos().bindingKey());
+    }
+
+    @Bean
+    public Binding documentosDlqBinding(Queue documentosDlq, DirectExchange deadLetterExchange,
+                                        MensajeriaProperties p) {
+        return BindingBuilder.bind(documentosDlq).to(deadLetterExchange).with(p.documentos().dlq());
     }
 
     // ---------- Mensajes en JSON ----------

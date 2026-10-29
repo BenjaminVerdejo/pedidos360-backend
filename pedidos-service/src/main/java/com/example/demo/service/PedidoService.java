@@ -60,6 +60,9 @@ public class PedidoService {
             p.setEstado(estado);
             Pedido actualizado = pedidoRepository.save(p);
             eventPublisher.publicarCambioEstado(actualizado);
+            if (Pedido.ESTADO_ENTREGADO.equals(estado)) {
+                eventPublisher.publicarPedidoEntregado(actualizado);
+            }
             return actualizado;
         });
     }

@@ -6,7 +6,7 @@ y mensajeria asincrona con RabbitMQ.
 ## Ejecutar
 
 ```bash
-docker compose up -d   # (desde la raiz del repo) levanta RabbitMQ (consola: http://localhost:15672  admin/admin123)
+docker compose up -d   # (desde la raiz del repo) cluster RabbitMQ de 2 nodos (consolas :15672 y :15673, admin/admin123)
 export DB_PASSWORD=********     # credenciales de RDS por variable de entorno (no van en el repo)
 ./mvnw spring-boot:run
 ./mvnw test                     # pruebas (H2 en memoria, no necesita RDS ni RabbitMQ)
@@ -25,14 +25,20 @@ PedidoService            +-------------->| notificaciones.queue |--------->| ped
 PedidoEventPublisher --> pedidos.exchange                                  |             |     +-------------------+
                      (topic)  pedido.creado  +--------------+     nack     |             |---->| tickets.dlq       |
                          +------------------>| tickets.queue|------------->|             |     +-------------------+
-                                             +--------------+              +-------------+
+                                             +--------------+              |             |     +-------------------+
+                     pedidos.direct (direct)  pedido.entregado +------------------+  |             |---->| documentos.dlq    |
+                         +-------------------------------->| documentos.queue |->|             |     +-------------------+
+                                                           +------------------+  +-------------+
 ```
+
+Exchanges: `pedidos.exchange` (**topic**, enruta por patron), `pedidos.direct` (**direct**, clave exacta) y `pedidos.dlx` (**direct**, mensajes fallidos).
 
 | Caso de uso | Routing key | Cola | Consumidor | Servicio de negocio |
 |---|---|---|---|---|
 | Notificar al cliente (pedido creado o cambio de estado) | `pedido.#` | `notificaciones.queue` | `NotificacionConsumer` | `NotificacionService` |
-| Generar ticket / documento del pedido | `pedido.creado` | `tickets.queue` | `TicketConsumer` | `TicketService` |
-| Registrar mensajes no entregados | (DLX) | `notificaciones.dlq`, `tickets.dlq` | `DeadLetterConsumer` | log |
+| Generar ticket del pedido | `pedido.creado` (topic) | `tickets.queue` | `TicketConsumer` | `TicketService` |
+| Comprobante de entrega (pedido ENTREGADO) | `pedido.entregado` (direct `pedidos.direct`) | `documentos.queue` | `DocumentoConsumer` | `DocumentoService` |
+| Registrar mensajes no entregados | (DLX `pedidos.dlx`) | `notificaciones.dlq`, `tickets.dlq`, `documentos.dlq` | `DeadLetterConsumer` | log |
 
 ### Estructura
 
@@ -44,10 +50,11 @@ messaging/
   consumer/
     notificaciones/  NotificacionConsumer
     tickets/         TicketConsumer
+    documentos/      DocumentoConsumer
     dlq/             DeadLetterConsumer
     support/         ConfirmadorMensajes (politica ACK/NACK)
 exception/    ErrorRecuperableException, ErrorNoRecuperableException
-service/      PedidoService, NotificacionService, TicketService  (no conocen RabbitMQ)
+service/      PedidoService, NotificacionService, TicketService, DocumentoService  (no conocen RabbitMQ)
 ```
 
 ### ACK y manejo de errores
@@ -69,5 +76,6 @@ Nunca se usa `requeue=true`, asi un mensaje defectuoso no queda en un bucle infi
 
 - Crear un pedido con `#falla-correo` en la descripcion: la notificacion falla 4 veces (1 + 3 reintentos) y termina en `notificaciones.dlq`.
 - Crear un pedido con `#falla-ticket` en la descripcion: igual con `tickets.dlq`.
+- Crear un pedido con `#falla-documento` y marcarlo **Entregado**: el comprobante termina en `documentos.dlq`.
 - El ticket si se genera en el primer caso y la notificacion en el segundo: cada cola es independiente.
 - Si RabbitMQ esta caido, el pedido igual se guarda (el publicador registra el error en el log).

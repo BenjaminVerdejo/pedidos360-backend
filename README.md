@@ -15,10 +15,19 @@ Angular --JWT--> bff-service --JWT--> pedidos-service --eventos--> RabbitMQ --> 
 rabbit-admin-service --(crea / elimina colas, exchanges, bindings)----+
 ```
 
+## RabbitMQ
+
+- **Cluster de 2 nodos** (`rabbitmq1`, `rabbitmq2`) definido en `docker-compose.yml` + `rabbitmq/cluster.conf`.
+  Los servicios se conectan con `spring.rabbitmq.addresses=localhost:5672,localhost:5673`.
+- **3 colas con su DLQ**: `notificaciones`, `tickets`, `documentos`.
+- **Exchanges**: `pedidos.exchange` (topic), `pedidos.direct` (direct), `pedidos.dlx` (direct, dead letter).
+
+Comprobar el cluster: `docker exec rabbitmq1 rabbitmqctl cluster_status`
+
 ## Ejecutar en local
 
 ```bash
-docker compose up -d                 # RabbitMQ  (consola: http://localhost:15672  admin/admin123)
+docker compose up -d                 # cluster RabbitMQ de 2 nodos (consolas :15672 y :15673, admin/admin123)
 
 cd pedidos-service
 export DB_PASSWORD=********          # PowerShell:  $env:DB_PASSWORD="********"

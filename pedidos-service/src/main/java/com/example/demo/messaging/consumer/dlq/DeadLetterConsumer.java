@@ -15,7 +15,7 @@ import java.util.Map;
 
 /**
  * Dominio DLQ (mensajes no entregados).
- * Escucha notificaciones.dlq y tickets.dlq y REGISTRA EN LOG cada mensaje fallido
+ * Escucha notificaciones.dlq, tickets.dlq y documentos.dlq y REGISTRA EN LOG cada mensaje fallido
  * con la cola de origen, el motivo (x-death) y el contenido, para poder auditarlo
  * o reprocesarlo manualmente. Luego hace ACK para no acumularlo indefinidamente.
  */
@@ -24,7 +24,8 @@ public class DeadLetterConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(DeadLetterConsumer.class);
 
-    @RabbitListener(queues = {"${app.rabbit.notificaciones.dlq}", "${app.rabbit.tickets.dlq}"})
+    @RabbitListener(queues = {"${app.rabbit.notificaciones.dlq}", "${app.rabbit.tickets.dlq}",
+            "${app.rabbit.documentos.dlq}"})
     public void registrar(Message mensaje, Channel channel) throws IOException {
         MessageProperties props = mensaje.getMessageProperties();
         String cuerpo = new String(mensaje.getBody(), StandardCharsets.UTF_8);

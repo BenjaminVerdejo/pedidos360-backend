@@ -26,18 +26,29 @@ public class PedidoEventPublisher {
         this.props = props;
     }
 
+    /** Topic exchange: lo reciben notificaciones (pedido.#) y tickets (pedido.creado). */
     public void publicarPedidoCreado(Pedido pedido) {
-        publicar(props.routing().pedidoCreado(), PedidoEvento.de("PEDIDO_CREADO", pedido));
+        publicar(props.exchange(), props.routing().pedidoCreado(),
+                PedidoEvento.de(PedidoEvento.PEDIDO_CREADO, pedido));
     }
 
+    /** Topic exchange: lo recibe notificaciones (pedido.#). */
     public void publicarCambioEstado(Pedido pedido) {
-        publicar(props.routing().pedidoEstado(), PedidoEvento.de("PEDIDO_ESTADO_CAMBIADO", pedido));
+        publicar(props.exchange(), props.routing().pedidoEstado(),
+                PedidoEvento.de(PedidoEvento.PEDIDO_ESTADO_CAMBIADO, pedido));
     }
 
-    private void publicar(String routingKey, PedidoEvento evento) {
+    /** Direct exchange: lo recibe solo documentos (clave exacta pedido.entregado). */
+    public void publicarPedidoEntregado(Pedido pedido) {
+        publicar(props.directExchange(), props.routing().pedidoEntregado(),
+                PedidoEvento.de(PedidoEvento.PEDIDO_ENTREGADO, pedido));
+    }
+
+    private void publicar(String exchange, String routingKey, PedidoEvento evento) {
         try {
-            rabbitTemplate.convertAndSend(props.exchange(), routingKey, evento);
-            log.info("Evento {} publicado (pedido {}, routingKey {})", evento.tipo(), evento.pedidoId(), routingKey);
+            rabbitTemplate.convertAndSend(exchange, routingKey, evento);
+            log.info("Evento {} publicado (pedido {}, exchange {}, routingKey {})",
+                    evento.tipo(), evento.pedidoId(), exchange, routingKey);
         } catch (AmqpException e) {
             log.error("No se pudo publicar el evento {} del pedido {}: {}", evento.tipo(), evento.pedidoId(), e.getMessage());
         }

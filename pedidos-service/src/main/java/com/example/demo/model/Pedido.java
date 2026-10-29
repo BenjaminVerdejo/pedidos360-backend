@@ -13,6 +13,8 @@ import java.time.LocalDateTime;
 @Table(name = "pedidos")
 public class Pedido {
 
+    public static final String ESTADO_ENTREGADO = "ENTREGADO";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

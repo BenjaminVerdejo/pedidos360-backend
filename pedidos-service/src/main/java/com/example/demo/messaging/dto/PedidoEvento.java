@@ -16,6 +16,11 @@ public record PedidoEvento(
         String estado,
         LocalDateTime fecha) {
 
+    // Tipos de evento (un solo lugar)
+    public static final String PEDIDO_CREADO = "PEDIDO_CREADO";
+    public static final String PEDIDO_ESTADO_CAMBIADO = "PEDIDO_ESTADO_CAMBIADO";
+    public static final String PEDIDO_ENTREGADO = "PEDIDO_ENTREGADO";
+
     public static PedidoEvento de(String tipo, Pedido p) {
         return new PedidoEvento(
                 tipo,

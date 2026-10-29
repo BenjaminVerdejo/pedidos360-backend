@@ -1,15 +1,48 @@
+# Cluster RabbitMQ de 2 nodos para Pedidos360
+#   Nodo 1: AMQP 5672  | consola http://localhost:15672
+#   Nodo 2: AMQP 5673  | consola http://localhost:15673
+#   Usuario: admin / admin123   (cambiar con RABBIT_USER / RABBIT_PASSWORD)
+# Los nodos se unen automaticamente al cluster (rabbitmq/cluster.conf).
+x-rabbitmq: &rabbitmq-base
+  image: rabbitmq:3.12-management-alpine
+  restart: unless-stopped
+  environment:
+    RABBITMQ_DEFAULT_USER: ${RABBIT_USER:-admin}
+    RABBITMQ_DEFAULT_PASS: ${RABBIT_PASSWORD:-admin123}
+    # misma cookie en ambos nodos: requisito para formar el cluster
+    RABBITMQ_ERLANG_COOKIE: ${RABBIT_COOKIE:-pedidos360-cluster-cookie}
+  healthcheck:
+    test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+    interval: 10s
+    timeout: 5s
+    retries: 10
+
 services:
-  rabbitmq:
-    image: rabbitmq:3.12-management-alpine
-    container_name: rabbitmq
+  rabbitmq1:
+    <<: *rabbitmq-base
+    hostname: rabbitmq1
+    container_name: rabbitmq1
     ports:
-      - "5672:5672"     # AMQP
-      - "15672:15672"   # Consola web
-    environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin123
+      - "5672:5672"
+      - "15672:15672"
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      - rabbitmq1_data:/var/lib/rabbitmq
+      - ./rabbitmq/cluster.conf:/etc/rabbitmq/conf.d/20-cluster.conf:ro
+
+  rabbitmq2:
+    <<: *rabbitmq-base
+    hostname: rabbitmq2
+    container_name: rabbitmq2
+    depends_on:
+      rabbitmq1:
+        condition: service_healthy
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    volumes:
+      - rabbitmq2_data:/var/lib/rabbitmq
+      - ./rabbitmq/cluster.conf:/etc/rabbitmq/conf.d/20-cluster.conf:ro
 
 volumes:
-  rabbitmq_data:
+  rabbitmq1_data:
+  rabbitmq2_data:

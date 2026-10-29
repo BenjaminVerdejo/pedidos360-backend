@@ -9,13 +9,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.rabbit")
 public record MensajeriaProperties(
         String exchange,
+        String directExchange,
         String dlx,
         Routing routing,
         Cola notificaciones,
         Cola tickets,
+        Cola documentos,
         Consumidor consumidor) {
 
-    public record Routing(String pedidoCreado, String pedidoEstado) {}
+    public record Routing(String pedidoCreado, String pedidoEstado, String pedidoEntregado) {}
 
     public record Cola(String queue, String dlq, String bindingKey) {}
 
