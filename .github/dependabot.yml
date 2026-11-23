@@ -1,0 +1,28 @@
+# Mantenimiento automatico de dependencias: Dependabot abre un PR semanal con las
+# actualizaciones; el pipeline CI valida cada PR antes de aceptarlo.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /pedidos-service
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      spring: { patterns: ["org.springframework*"] }
+  - package-ecosystem: maven
+    directory: /bff-service
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      spring: { patterns: ["org.springframework*"] }
+  - package-ecosystem: maven
+    directory: /rabbit-admin-service
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      spring: { patterns: ["org.springframework*"] }
+  - package-ecosystem: docker
+    directories: ["/pedidos-service", "/bff-service", "/rabbit-admin-service"]
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }

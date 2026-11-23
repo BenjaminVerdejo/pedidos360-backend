@@ -6,7 +6,7 @@ y mensajeria asincrona con RabbitMQ.
 ## Ejecutar
 
 ```bash
-docker compose up -d   # (desde la raiz del repo) cluster RabbitMQ de 2 nodos (consolas :15672 y :15673, admin/admin123)
+cp .env.example .env && docker compose up -d   # (desde la raiz del repo) cluster RabbitMQ de 2 nodos
 export DB_PASSWORD=********     # credenciales de RDS por variable de entorno (no van en el repo)
 ./mvnw spring-boot:run
 ./mvnw test                     # pruebas (H2 en memoria, no necesita RDS ni RabbitMQ)

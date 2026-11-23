@@ -1,0 +1,105 @@
+# Reglas SAST propias de Pedidos360 (Semgrep).
+# Se ejecutan en el pipeline de CI junto a las reglas de la comunidad.
+# Cada regla esta mapeada a OWASP Top 10 2021 / CWE para la trazabilidad normativa.
+rules:
+  - id: p360-entidad-jpa-como-request-body
+    languages: [java]
+    severity: ERROR
+    message: >-
+      Se recibe una entidad JPA ($T) directamente como @RequestBody. Un cliente puede enviar
+      campos que no deberia controlar (id, estado, fecha): asignacion masiva. Use un DTO.
+    metadata:
+      cwe: "CWE-915: Improperly Controlled Modification of Dynamically-Determined Object Attributes"
+      owasp: "A04:2021 - Insecure Design"
+      category: security
+    patterns:
+      - pattern: |
+          $RET $METHOD(..., @RequestBody $T $P, ...) { ... }
+      - metavariable-regex:
+          metavariable: $T
+          regex: ^(Pedido|Cliente)$
+
+  - id: p360-body-sin-tipar
+    languages: [java]
+    severity: WARNING
+    message: >-
+      El cuerpo de la peticion se recibe como Map sin validacion declarativa. Use un DTO con
+      Bean Validation (@NotNull, @Pattern, enum) para validar la entrada.
+    metadata:
+      cwe: "CWE-20: Improper Input Validation"
+      owasp: "A03:2021 - Injection"
+      category: security
+    pattern: |
+      $RET $METHOD(..., @RequestBody Map<$K, $V> $B, ...) { ... }
+
+  - id: p360-dato-personal-en-log
+    languages: [java]
+    severity: WARNING
+    message: >-
+      Se escribe un dato personal (email o cuerpo completo del mensaje) en el log. Ley 19.628 /
+      Ley 21.719: minimizar y enmascarar datos personales en registros.
+    metadata:
+      cwe: "CWE-532: Insertion of Sensitive Information into Log File"
+      owasp: "A09:2021 - Security Logging and Monitoring Failures"
+      category: security
+    pattern-either:
+      - pattern: $LOG.$LEVEL($MSG, ..., $E.clienteEmail(), ...)
+      - pattern: $LOG.$LEVEL($MSG, ..., $E.getEmail(), ...)
+      - pattern: $LOG.$LEVEL($MSG, ..., cuerpo, ...)
+
+  - id: p360-httpclient-sin-timeout
+    languages: [java]
+    severity: WARNING
+    message: >-
+      HttpClient sin connectTimeout: si el servicio destino no responde, los hilos quedan
+      bloqueados (denegacion de servicio por agotamiento de recursos).
+    metadata:
+      cwe: "CWE-400: Uncontrolled Resource Consumption"
+      owasp: "A05:2021 - Security Misconfiguration"
+      category: security
+    patterns:
+      - pattern: HttpClient.newBuilder(). ... .build()
+      - pattern-not: HttpClient.newBuilder(). ... .connectTimeout(...). ... .build()
+
+  - id: p360-password-por-defecto-en-config
+    languages: [generic]
+    severity: ERROR
+    paths:
+      include: ["*.properties", "*.yml", "*.yaml"]
+    message: >-
+      La configuracion define una contrasena por defecto. Si la variable de entorno no existe,
+      el sistema arranca con una credencial conocida y publica en GitHub.
+    metadata:
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      category: security
+    pattern-regex: \$\{[A-Z_]*PASS[A-Z_]*:-?[^?}\s][^}\s]*\}
+
+  - id: p360-host-de-infraestructura-en-repo
+    languages: [generic]
+    severity: WARNING
+    paths:
+      include: ["*.properties", "*.yml", "*.yaml"]
+    message: >-
+      Se publica el endpoint real de la base de datos (AWS RDS) como valor por defecto. Facilita el
+      reconocimiento del objetivo; debe venir solo desde variables de entorno o un gestor de secretos.
+    metadata:
+      cwe: "CWE-200: Exposure of Sensitive Information to an Unauthorized Actor"
+      owasp: "A05:2021 - Security Misconfiguration"
+      category: security
+    pattern-regex: \$\{[A-Z_]*HOST:[a-z0-9.-]+\.rds\.amazonaws\.com\}
+
+  - id: p360-ddl-auto-update
+    languages: [generic]
+    severity: WARNING
+    paths:
+      include: ["*.properties"]
+      exclude: ["**/test/**"]
+    message: >-
+      spring.jpa.hibernate.ddl-auto=update modifica el esquema de produccion de forma automatica y
+      sin control de versiones. Use validate en produccion y migraciones versionadas.
+    metadata:
+      cwe: "CWE-1188: Initialization of a Resource with an Insecure Default"
+      owasp: "A05:2021 - Security Misconfiguration"
+      category: security
+    pattern-regex: ddl-auto=update\s*$

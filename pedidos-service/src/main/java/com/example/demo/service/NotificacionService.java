@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.exception.ErrorNoRecuperableException;
 import com.example.demo.exception.ErrorRecuperableException;
 import com.example.demo.messaging.dto.PedidoEvento;
+import com.example.demo.util.DatosPersonales;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,7 @@ public class NotificacionService {
         };
 
         // Aqui iria el envio real (SES, SMTP, etc.). Se simula con un log.
-        log.info("Notificacion enviada a {} | asunto: '{}'", evento.clienteEmail(), asunto);
+        // El email se enmascara en el log (minimizacion de datos personales, Ley 19.628 / 21.719)
+        log.info("Notificacion enviada a {} | asunto: '{}'", DatosPersonales.enmascararEmail(evento.clienteEmail()), asunto);
     }
 }

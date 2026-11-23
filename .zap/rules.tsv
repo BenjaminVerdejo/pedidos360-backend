@@ -1,0 +1,5 @@
+# Reglas de OWASP ZAP (formato: id<TAB>IGNORE|WARN|FAIL<TAB>comentario)
+10049	IGNORE	(Contenido no almacenable en cache: esperado en una API con Cache-Control no-store)
+10021	FAIL	(X-Content-Type-Options ausente)
+10020	FAIL	(Anti-clickjacking ausente)
+10038	FAIL	(Content-Security-Policy ausente)

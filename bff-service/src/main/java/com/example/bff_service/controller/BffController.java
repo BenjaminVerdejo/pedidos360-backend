@@ -24,6 +24,8 @@ import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.time.Duration;
+import java.util.regex.Pattern;
 
 /**
  * BFF: recibe las peticiones del frontend (ya validadas con el JWT en SecurityConfig)
@@ -34,6 +36,17 @@ public class BffController {
 
     private static final Logger log = LoggerFactory.getLogger(BffController.class);
 
+    /**
+     * Lista blanca de rutas que el BFF reenvia. Cualquier otra ruta responde 404 sin llegar a
+     * pedidos-service (reduce la superficie de ataque y evita reenviar rutas manipuladas).
+     */
+    private static final Pattern RUTAS_PERMITIDAS =
+            Pattern.compile("^/api/(test|pedidos(/\\d{1,18}(/estado)?)?)$");
+
+    /** Tiempos maximos de espera: si pedidos-service no responde, no se bloquean hilos indefinidamente. */
+    private static final Duration TIMEOUT_CONEXION = Duration.ofSeconds(3);
+    private static final Duration TIMEOUT_LECTURA = Duration.ofSeconds(10);
+
     private final String pedidosServiceUrl;
     private final RestTemplate restTemplate;
 
@@ -41,8 +54,13 @@ public class BffController {
         this.pedidosServiceUrl = pedidosServiceUrl;
 
         // HTTP/1.1 y cliente del JDK: soporta PATCH (el de por defecto no)
-        HttpClient httpClient = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
-        this.restTemplate = new RestTemplate(new JdkClientHttpRequestFactory(httpClient));
+        HttpClient httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(TIMEOUT_CONEXION)
+                .build();
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
+        factory.setReadTimeout(TIMEOUT_LECTURA);
+        this.restTemplate = new RestTemplate(factory);
 
         // no lanzar excepcion con 4xx/5xx: se devuelve el mismo status al frontend
         this.restTemplate.setErrorHandler(new DefaultResponseErrorHandler() {
@@ -59,6 +77,12 @@ public class BffController {
     public ResponseEntity<String> reenviar(HttpServletRequest request,
                                            @RequestBody(required = false) String body,
                                            Authentication auth) {
+
+        if (!RUTAS_PERMITIDAS.matcher(request.getRequestURI()).matches()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body("{\"error\":\"not_found\",\"mensaje\":\"Recurso no disponible\"}");
+        }
 
         String query = request.getQueryString();
         URI destino = URI.create(pedidosServiceUrl + request.getRequestURI() + (query != null ? "?" + query : ""));
