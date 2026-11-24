@@ -132,7 +132,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Reporte de dependencias vulnerables
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (fijada por commit: protege ante tags modificados)
         with:
           scan-type: fs
           scanners: vuln
@@ -140,7 +140,7 @@ jobs:
           output: trivy-dependencias.txt
           exit-code: "0"
       - name: Reporte SARIF
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (fijada por commit: protege ante tags modificados)
         with:
           scan-type: fs
           scanners: vuln
@@ -159,7 +159,7 @@ jobs:
           name: sca-trivy
           path: trivy-dependencias.*
       - name: Quality gate (CVE CRITICAL con parche disponible)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (fijada por commit: protege ante tags modificados)
         with:
           scan-type: fs
           scanners: vuln
@@ -185,7 +185,7 @@ jobs:
       - name: Construir imagen
         run: docker build -t pedidos360/${{ matrix.servicio }}:${{ github.sha }} ${{ matrix.servicio }}
       - name: Escanear imagen (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (fijada por commit: protege ante tags modificados)
         with:
           image-ref: pedidos360/${{ matrix.servicio }}:${{ github.sha }}
           format: table
@@ -197,7 +197,7 @@ jobs:
           name: imagen-${{ matrix.servicio }}
           path: trivy-imagen-*.txt
       - name: Quality gate imagen (CRITICAL con parche)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (fijada por commit: protege ante tags modificados)
         with:
           image-ref: pedidos360/${{ matrix.servicio }}:${{ github.sha }}
           severity: CRITICAL
