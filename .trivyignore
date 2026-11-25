@@ -1,0 +1,12 @@
+# Excepciones de vulnerabilidades aceptadas (gestion de riesgo documentada - EP5)
+# Formato: CVE exp:fecha. Despues de esa fecha Trivy vuelve a bloquear el pipeline.
+#
+# spring-webmvc 6.2.x: estos CVE solo tienen parche en Spring Framework 7 (Spring Boot 4).
+# NO son explotables en Pedidos360:
+#  - CVE-2026-47884: RCE via XsltView. La aplicacion es una API REST JSON y no usa
+#    XsltView ni resolucion de vistas XSLT.
+#  - CVE-2026-47890: corrupcion de stream en Server-Sent Events con vistas. No se usa SSE.
+# Plan de remediacion: migrar a Spring Boot 4 (mantenimiento adaptativo) antes del vencimiento.
+# Responsable: lider tecnico. Revision: mensual.
+CVE-2026-47884 exp:2027-03-31
+CVE-2026-47890 exp:2027-03-31
