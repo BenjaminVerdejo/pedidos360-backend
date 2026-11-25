@@ -1,5 +1,6 @@
 package com.example.demo.messaging.consumer.dlq;
 
+import com.example.demo.util.DatosPersonales;
 import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +29,8 @@ public class DeadLetterConsumer {
             "${app.rabbit.documentos.dlq}"})
     public void registrar(Message mensaje, Channel channel) throws IOException {
         MessageProperties props = mensaje.getMessageProperties();
-        String cuerpo = new String(mensaje.getBody(), StandardCharsets.UTF_8);
+        // los emails del mensaje se enmascaran antes de escribirlos en el log
+        String contenido = DatosPersonales.enmascararEmailsEnTexto(new String(mensaje.getBody(), StandardCharsets.UTF_8));
 
         String colaOrigen = "desconocida";
         String motivo = "desconocido";
@@ -42,7 +44,7 @@ public class DeadLetterConsumer {
         }
 
         log.error("[DLQ {}] Mensaje no entregado | cola origen: {} | motivo: {} | veces: {} | contenido: {}",
-                props.getConsumerQueue(), colaOrigen, motivo, veces, cuerpo);
+                props.getConsumerQueue(), colaOrigen, motivo, veces, contenido);
 
         channel.basicAck(props.getDeliveryTag(), false);
     }

@@ -1,0 +1,28 @@
+# Analisis estatico semantico de GitHub (CodeQL) - complementa a Semgrep en el pipeline SAST
+name: CodeQL
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: "30 6 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analizar:
+    name: CodeQL Java
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          build-mode: none
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:java-kotlin"

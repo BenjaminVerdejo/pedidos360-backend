@@ -1,14 +1,19 @@
 package com.example.demo.service;
 
+import com.example.demo.dto.PedidoRequest;
+import com.example.demo.exception.TransicionEstadoInvalidaException;
 import com.example.demo.messaging.producer.PedidoEventPublisher;
 import com.example.demo.model.Cliente;
+import com.example.demo.model.EstadoPedido;
 import com.example.demo.model.Pedido;
 import com.example.demo.repository.ClienteRepository;
 import com.example.demo.repository.PedidoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -40,27 +45,48 @@ public class PedidoService {
         return pedidoRepository.findById(id);
     }
 
+    /**
+     * Crea un pedido a partir del DTO. id, estado y fecha los define SIEMPRE el backend
+     * (el cliente no puede crear un pedido ya "ENTREGADO" ni con otra fecha).
+     */
     @Transactional
-    public Pedido crear(Pedido pedido) {
-        pedido.setId(null);
-        Cliente datos = pedido.getCliente();
-        Cliente cliente = clienteRepository.findByEmail(datos.getEmail()).orElseGet(() -> {
-            datos.setId(null);
-            return clienteRepository.save(datos);
+    public Pedido crear(PedidoRequest request) {
+        String email = request.cliente().email().trim().toLowerCase(Locale.ROOT);
+        Cliente cliente = clienteRepository.findByEmail(email).orElseGet(() -> {
+            Cliente nuevo = new Cliente();
+            nuevo.setNombre(request.cliente().nombre().trim());
+            nuevo.setEmail(email);
+            return clienteRepository.save(nuevo);
         });
+
+        Pedido pedido = new Pedido();
         pedido.setCliente(cliente);
+        pedido.setDescripcion(request.descripcion().trim());
+        pedido.setTotal(request.total());
+        pedido.setEstado(EstadoPedido.PENDIENTE.name());
+        pedido.setFecha(LocalDateTime.now());
+
         Pedido guardado = pedidoRepository.save(pedido);
         eventPublisher.publicarPedidoCreado(guardado);
         return guardado;
     }
 
+    /**
+     * Cambia el estado validando la transicion: ENTREGADO y CANCELADO son finales.
+     * @throws TransicionEstadoInvalidaException si el pedido ya esta en un estado final
+     */
     @Transactional
-    public Optional<Pedido> cambiarEstado(Long id, String estado) {
+    public Optional<Pedido> cambiarEstado(Long id, EstadoPedido nuevoEstado) {
         return pedidoRepository.findById(id).map(p -> {
-            p.setEstado(estado);
+            EstadoPedido actual = EstadoPedido.desde(p.getEstado());
+            if (actual.esFinal()) {
+                throw new TransicionEstadoInvalidaException(
+                        "El pedido #" + id + " esta " + actual + " y ya no puede cambiar de estado");
+            }
+            p.setEstado(nuevoEstado.name());
             Pedido actualizado = pedidoRepository.save(p);
             eventPublisher.publicarCambioEstado(actualizado);
-            if (Pedido.ESTADO_ENTREGADO.equals(estado)) {
+            if (nuevoEstado == EstadoPedido.ENTREGADO) {
                 eventPublisher.publicarPedidoEntregado(actualizado);
             }
             return actualizado;

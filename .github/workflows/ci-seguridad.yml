@@ -1,0 +1,269 @@
+# Pipeline DevSecOps de Pedidos360 Backend (EP5 - ISY1102)
+#
+#  push / PR ──► [1] Pruebas + cobertura (JUnit, MockMvc, Mockito, JaCoCo)
+#           ├──► [2] SAST  (Semgrep: reglas comunidad + reglas propias .semgrep/)
+#           ├──► [3] Secretos (Gitleaks sobre todo el historial)
+#           ├──► [4] SCA   (Trivy: dependencias Maven con CVE)
+#           └──► [5] Contenedores (Hadolint + build + Trivy imagen)  ──► [6] DAST + rendimiento
+#                                                                        (pruebas dinamicas, OWASP ZAP, k6)
+#  Quality gate: el pipeline falla si hay pruebas rojas, hallazgos SAST de severidad ERROR,
+#  secretos expuestos o vulnerabilidades CRITICAL con parche disponible.
+name: CI Seguridad y Calidad
+
+on:
+  push:
+    branches: [main, master, "ep*"]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"   # todos los lunes: detecta CVE nuevos aunque no haya cambios en el codigo
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    name: "[1] Pruebas automatizadas - ${{ matrix.servicio }}"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    strategy:
+      fail-fast: false
+      matrix:
+        servicio: [pedidos-service, bff-service, rabbit-admin-service]
+    defaults:
+      run:
+        working-directory: ${{ matrix.servicio }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          cache-dependency-path: ${{ matrix.servicio }}/pom.xml
+      - name: Compilar, ejecutar pruebas y medir cobertura
+        run: mvn -B -ntp verify
+      - name: Resumen de cobertura (JaCoCo)
+        if: always()
+        run: |
+          CSV=target/site/jacoco/jacoco.csv
+          if [ -f "$CSV" ]; then
+            awk -F, -v svc="${{ matrix.servicio }}" 'NR>1 {mi+=$8; ci+=$9; mb+=$6; cb+=$7} END {
+              printf "### Cobertura %s\n\n| Metrica | Cobertura |\n|---|---|\n| Lineas | %.1f%% |\n| Ramas | %.1f%% |\n", svc, 100*ci/(mi+ci), (mb+cb>0?100*cb/(mb+cb):0) }' "$CSV" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Publicar resultados de pruebas
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: "${{ matrix.servicio }}/target/surefire-reports/TEST-*.xml"
+          check_name: "Pruebas ${{ matrix.servicio }}"
+          include_passed: true
+      - name: Guardar reportes (evidencia)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-${{ matrix.servicio }}
+          path: |
+            ${{ matrix.servicio }}/target/surefire-reports/
+            ${{ matrix.servicio }}/target/site/jacoco/
+
+  sast:
+    name: "[2] SAST - Semgrep"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Analisis completo (reporte SARIF)
+        run: |
+          semgrep scan --metrics=off \
+            --config p/java --config p/secrets --config p/owasp-top-ten --config p/dockerfile \
+            --config .semgrep \
+            --sarif --output semgrep.sarif || true
+          semgrep scan --metrics=off --config p/java --config p/owasp-top-ten --config .semgrep --text | tee semgrep.txt || true
+      - name: Subir hallazgos a GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sast-semgrep
+          path: semgrep.*
+      - name: Quality gate (falla con hallazgos de severidad ERROR)
+        run: semgrep scan --metrics=off --config .semgrep --config p/java --severity ERROR --error
+
+  secretos:
+    name: "[3] Secretos - Gitleaks"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # revisa TODO el historial, no solo el ultimo commit
+      - name: Instalar Gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar xz gitleaks
+      - name: Buscar secretos en el historial
+        run: ./gitleaks detect --source . --redact --verbose --report-format json --report-path gitleaks.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: secretos-gitleaks
+          path: gitleaks.json
+
+  sca:
+    name: "[4] SCA - Dependencias (Trivy)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reporte de dependencias vulnerables
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (fijada por commit: protege ante tags modificados)
+        with:
+          scan-type: fs
+          scanners: vuln
+          format: table
+          output: trivy-dependencias.txt
+          exit-code: "0"
+      - name: Reporte SARIF
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (fijada por commit: protege ante tags modificados)
+        with:
+          scan-type: fs
+          scanners: vuln
+          format: sarif
+          output: trivy-dependencias.sarif
+          exit-code: "0"
+      - name: Subir a GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-dependencias.sarif
+          category: trivy-dependencias
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sca-trivy
+          path: trivy-dependencias.*
+      - name: Quality gate (CVE CRITICAL con parche disponible)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (fijada por commit: protege ante tags modificados)
+        with:
+          scan-type: fs
+          scanners: vuln
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  contenedores:
+    name: "[5] Contenedores - ${{ matrix.servicio }}"
+    needs: pruebas
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        servicio: [pedidos-service, bff-service, rabbit-admin-service]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint del Dockerfile (Hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ matrix.servicio }}/Dockerfile
+          failure-threshold: error
+      - name: Construir imagen
+        run: docker build -t pedidos360/${{ matrix.servicio }}:${{ github.sha }} ${{ matrix.servicio }}
+      - name: Escanear imagen (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (fijada por commit: protege ante tags modificados)
+        with:
+          image-ref: pedidos360/${{ matrix.servicio }}:${{ github.sha }}
+          format: table
+          output: trivy-imagen-${{ matrix.servicio }}.txt
+          exit-code: "0"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: imagen-${{ matrix.servicio }}
+          path: trivy-imagen-*.txt
+      - name: Quality gate imagen (CRITICAL con parche)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (fijada por commit: protege ante tags modificados)
+        with:
+          image-ref: pedidos360/${{ matrix.servicio }}:${{ github.sha }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  dast:
+    name: "[6] DAST + rendimiento (ZAP, pruebas dinamicas, k6)"
+    needs: contenedores
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generar secretos efimeros para el entorno de prueba
+        run: |
+          {
+            echo "RABBIT_PASSWORD=$(openssl rand -hex 16)"
+            echo "RABBIT_COOKIE=$(openssl rand -hex 16)"
+            echo "DB_PASSWORD=$(openssl rand -hex 16)"
+            echo "JPA_DDL_AUTO=update"
+          } > .env
+      - name: Levantar stack completo (RabbitMQ x2, PostgreSQL, 3 microservicios)
+        run: docker compose --profile app up -d --build
+      - name: Esperar a que los servicios esten sanos
+        run: |
+          for url in http://localhost:8080/actuator/health http://localhost:8081/actuator/health; do
+            for i in $(seq 1 60); do
+              curl -fs "$url" > /dev/null && echo "OK $url" && break
+              sleep 5
+            done
+          done
+          docker compose --profile app ps
+      - name: Pruebas de seguridad dinamicas (scripted DAST)
+        run: bash scripts/pruebas-seguridad-dinamicas.sh | tee dast-resultados.md
+      - name: OWASP ZAP baseline - pedidos-service
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: http://localhost:8080/api/pedidos
+          rules_file_name: .zap/rules.tsv
+          cmd_options: "-a"
+          allow_issue_writing: false
+          fail_action: false
+          artifact_name: zap-pedidos-service
+      - name: OWASP ZAP baseline - bff-service
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: http://localhost:8081/api/pedidos
+          rules_file_name: .zap/rules.tsv
+          cmd_options: "-a"
+          allow_issue_writing: false
+          fail_action: false
+          artifact_name: zap-bff-service
+      - name: Prueba de rendimiento (k6)
+        run: |
+          docker run --rm --network host -u "$(id -u)" -v "$PWD/pruebas/rendimiento:/scripts" \
+            -e BASE_URL=http://localhost:8081 grafana/k6 run --summary-export=/scripts/k6-resumen.json /scripts/k6-humo.js
+      - name: Logs de los servicios
+        if: always()
+        run: docker compose --profile app logs --no-color > logs-servicios.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dast-rendimiento
+          path: |
+            dast-resultados.md
+            pruebas/rendimiento/k6-resumen.json
+            logs-servicios.txt
+      - name: Bajar stack
+        if: always()
+        run: docker compose --profile app down -v

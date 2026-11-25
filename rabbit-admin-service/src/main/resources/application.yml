@@ -1,5 +1,9 @@
 server:
   port: 8082
+  # nunca exponer trazas ni mensajes internos al cliente (CWE-209)
+  error:
+    include-stacktrace: never
+    include-message: never
 
 spring:
   application:
@@ -9,7 +13,7 @@ spring:
     # cluster de 2 nodos: si uno cae se conecta al otro
     addresses: ${RABBIT_ADDRESSES:localhost:5672,localhost:5673}
     username: ${RABBIT_USER:admin}
-    password: ${RABBIT_PASSWORD:admin123}
+    password: ${RABBIT_PASSWORD}   # sin valor por defecto: obligatorio por variable de entorno
   # --- Validacion del JWT de Azure AD (IDaaS) ---
   security:
     oauth2:
@@ -23,6 +27,9 @@ management:
     web:
       exposure:
         include: health
+  endpoint:
+    health:
+      show-details: never
 
 app:
   cors:

@@ -26,3 +26,6 @@ Thumbs.db
 # Variables de entorno / secretos
 .env
 *.env
+
+# permitir la plantilla de variables (sin secretos)
+!.env.example
