@@ -232,7 +232,7 @@ jobs:
       - name: Pruebas de seguridad dinamicas (scripted DAST)
         run: bash scripts/pruebas-seguridad-dinamicas.sh | tee dast-resultados.md
       - name: OWASP ZAP baseline - pedidos-service
-        uses: zaproxy/action-baseline@v0.14.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: http://localhost:8080/api/pedidos
           rules_file_name: .zap/rules.tsv
@@ -241,7 +241,7 @@ jobs:
           fail_action: false
           artifact_name: zap-pedidos-service
       - name: OWASP ZAP baseline - bff-service
-        uses: zaproxy/action-baseline@v0.14.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: http://localhost:8081/api/pedidos
           rules_file_name: .zap/rules.tsv
