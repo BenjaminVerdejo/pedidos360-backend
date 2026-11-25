@@ -59,7 +59,7 @@ jobs:
           fi
       - name: Publicar resultados de pruebas
         if: always()
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         with:
           report_paths: "${{ matrix.servicio }}/target/surefire-reports/TEST-*.xml"
           check_name: "Pruebas ${{ matrix.servicio }}"
