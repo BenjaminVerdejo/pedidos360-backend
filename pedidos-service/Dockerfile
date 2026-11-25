@@ -9,7 +9,7 @@ RUN mvn -B -q package -DskipTests
 
 # ---------- Etapa 2: imagen final minima ----------
 # Solo JRE (sin compilador ni Maven) => menos paquetes, menos vulnerabilidades
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 LABEL org.opencontainers.image.title="pedidos-service" \
       org.opencontainers.image.source="https://github.com/BenjaminVerdejo/pedidos360-backend"
 WORKDIR /app
