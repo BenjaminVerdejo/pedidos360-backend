@@ -1,0 +1,3 @@
+# Scripts que se ejecutan dentro de contenedores Linux: siempre con saltos de linea LF
+# (en Windows, git los convertiria a CRLF y bash fallaria con "$'\r': command not found")
+*.sh text eol=lf

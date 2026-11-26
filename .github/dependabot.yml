@@ -20,8 +20,20 @@ updates:
     open-pull-requests-limit: 5
     groups:
       spring: { patterns: ["org.springframework*"] }
+  - package-ecosystem: maven
+    directory: /analitica-service
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      spring: { patterns: ["org.springframework*"] }
+  - package-ecosystem: maven
+    directory: /kafka-admin-service
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      spring: { patterns: ["org.springframework*"] }
   - package-ecosystem: docker
-    directories: ["/pedidos-service", "/bff-service", "/rabbit-admin-service"]
+    directories: ["/pedidos-service", "/bff-service", "/rabbit-admin-service", "/analitica-service", "/kafka-admin-service"]
     schedule: { interval: weekly }
   - package-ecosystem: github-actions
     directory: /

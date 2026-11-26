@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.dto.ClienteRequest;
 import com.example.demo.dto.PedidoRequest;
 import com.example.demo.exception.TransicionEstadoInvalidaException;
+import com.example.demo.messaging.kafka.PedidoKafkaProducer;
 import com.example.demo.messaging.producer.PedidoEventPublisher;
 import com.example.demo.model.Cliente;
 import com.example.demo.model.EstadoPedido;
@@ -25,6 +26,7 @@ class PedidoServiceTest {
     private PedidoRepository pedidoRepository;
     private ClienteRepository clienteRepository;
     private PedidoEventPublisher publisher;
+    private PedidoKafkaProducer kafka;
     private PedidoService service;
 
     @BeforeEach
@@ -32,7 +34,8 @@ class PedidoServiceTest {
         pedidoRepository = mock(PedidoRepository.class);
         clienteRepository = mock(ClienteRepository.class);
         publisher = mock(PedidoEventPublisher.class);
-        service = new PedidoService(pedidoRepository, clienteRepository, publisher);
+        kafka = mock(PedidoKafkaProducer.class);
+        service = new PedidoService(pedidoRepository, clienteRepository, publisher, kafka);
         when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> {
             Pedido p = inv.getArgument(0);
             if (p.getId() == null) {
@@ -72,6 +75,7 @@ class PedidoServiceTest {
         assertEquals("Pedido de prueba", creado.getDescripcion());
         assertNotNull(creado.getFecha());
         verify(publisher).publicarPedidoCreado(creado);
+        verify(kafka).publicarPedidoCreado(creado);
     }
 
     @Test
@@ -97,6 +101,7 @@ class PedidoServiceTest {
         assertEquals("ENTREGADO", p.getEstado());
         verify(publisher).publicarCambioEstado(p);
         verify(publisher).publicarPedidoEntregado(p);
+        verify(kafka).publicarCambioEstado(p, "ENVIADO");
     }
 
     @Test
@@ -115,7 +120,7 @@ class PedidoServiceTest {
 
         assertThrows(TransicionEstadoInvalidaException.class,
                 () -> service.cambiarEstado(5L, EstadoPedido.PENDIENTE));
-        verifyNoInteractions(publisher);
+        verifyNoInteractions(publisher, kafka);
     }
 
     @Test

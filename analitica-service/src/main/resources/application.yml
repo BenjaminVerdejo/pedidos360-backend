@@ -1,0 +1,67 @@
+server:
+  port: 8083
+  # nunca exponer trazas ni mensajes internos al cliente (CWE-209)
+  error:
+    include-stacktrace: never
+    include-message: never
+
+spring:
+  application:
+    name: analitica-service
+  # --- Validacion del JWT de Azure AD (IDaaS) ---
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/015cad58-1396-4898-9f0a-4cb1e1191c38/v2.0
+          audiences: 82adc866-3948-44f8-993d-5658734ad794
+  # --- Cliente Kafka (consumidor) ---
+  kafka:
+    # 3 brokers: si uno cae, el cliente usa los otros (desde Docker: kafka1:9092,kafka2:9092,kafka3:9092)
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092,localhost:29093,localhost:29094}
+    client-id: analitica-service
+    consumer:
+      # sin offset guardado (grupo nuevo) se lee desde el inicio del topico
+      auto-offset-reset: earliest
+      # el offset se confirma solo despues de procesar el mensaje (ack-mode record): at-least-once
+      enable-auto-commit: false
+      max-poll-records: 50
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # ErrorHandlingDeserializer: un JSON corrupto no rompe el consumidor, va al DLT
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        "[spring.deserializer.value.delegate.class]": org.springframework.kafka.support.serializer.JsonDeserializer
+        "[spring.json.trusted.packages]": com.example.analitica.dto
+        # alias enviado por pedidos-service en la cabecera __TypeId__ -> DTO local
+        "[spring.json.type.mapping]": pedidoCreado:com.example.analitica.dto.PedidoCreadoEvento,estadoCambiado:com.example.analitica.dto.EstadoPedidoCambiadoEvento
+        # rebalanceo cooperativo: al entrar/salir un consumidor no se detiene todo el grupo
+        "[partition.assignment.strategy]": org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+        "[session.timeout.ms]": 30000
+        "[heartbeat.interval.ms]": 3000
+        "[max.poll.interval.ms]": 300000
+    listener:
+      ack-mode: record
+      # si un topico aun no existe, el consumidor espera en vez de fallar al arrancar
+      missing-topics-fatal: false
+    admin:
+      fail-fast: false
+      operation-timeout: 10s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  kafka:
+    # hilos por listener = particiones del topico (3)
+    concurrencia: 3
+    # manejo de errores: reintentos con espera exponencial antes de enviar al DLT
+    reintentos: 3
+    espera-inicial-ms: 1000

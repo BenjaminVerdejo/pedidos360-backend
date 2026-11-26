@@ -35,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        servicio: [pedidos-service, bff-service, rabbit-admin-service]
+        servicio: [pedidos-service, bff-service, rabbit-admin-service, analitica-service, kafka-admin-service]
     defaults:
       run:
         working-directory: ${{ matrix.servicio }}
@@ -174,7 +174,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        servicio: [pedidos-service, bff-service, rabbit-admin-service]
+        servicio: [pedidos-service, bff-service, rabbit-admin-service, analitica-service, kafka-admin-service]
     steps:
       - uses: actions/checkout@v4
       - name: Lint del Dockerfile (Hadolint)
@@ -218,17 +218,27 @@ jobs:
             echo "DB_PASSWORD=$(openssl rand -hex 16)"
             echo "JPA_DDL_AUTO=update"
           } > .env
-      - name: Levantar stack completo (RabbitMQ x2, PostgreSQL, 3 microservicios)
-        run: docker compose --profile app up -d --build
+      - name: Levantar stack completo (RabbitMQ x2, PostgreSQL, Kafka 3 ZK + 3 brokers, Kafka UI, 5 microservicios)
+        run: docker compose --profile app --profile kafka up -d --build
       - name: Esperar a que los servicios esten sanos
         run: |
-          for url in http://localhost:8080/actuator/health http://localhost:8081/actuator/health; do
+          for url in http://localhost:8080/actuator/health http://localhost:8081/actuator/health http://localhost:8083/actuator/health http://localhost:8084/actuator/health; do
             for i in $(seq 1 60); do
               curl -fs "$url" > /dev/null && echo "OK $url" && break
               sleep 5
             done
           done
-          docker compose --profile app ps
+          docker compose --profile app --profile kafka ps
+      - name: Verificar topicos Kafka (3 particiones, 3 replicas)
+        run: |
+          {
+            echo "### Topicos Kafka"
+            echo '```'
+            docker compose --profile kafka exec -T kafka1 kafka-topics --bootstrap-server kafka1:9092 --describe --topic pedidos-creados
+            docker compose --profile kafka exec -T kafka1 kafka-topics --bootstrap-server kafka1:9092 --describe --topic pedidos-estados
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          docker compose --profile kafka exec -T kafka1 kafka-topics --bootstrap-server kafka1:9092 --describe --topic pedidos-creados | grep -q "PartitionCount: 3.*ReplicationFactor: 3"
       - name: Pruebas de seguridad dinamicas (scripted DAST)
         run: bash scripts/pruebas-seguridad-dinamicas.sh | tee dast-resultados.md
       - name: OWASP ZAP baseline - pedidos-service
@@ -255,7 +265,7 @@ jobs:
             -e BASE_URL=http://localhost:8081 grafana/k6 run --summary-export=/scripts/k6-resumen.json /scripts/k6-humo.js
       - name: Logs de los servicios
         if: always()
-        run: docker compose --profile app logs --no-color > logs-servicios.txt
+        run: docker compose --profile app --profile kafka logs --no-color > logs-servicios.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -266,4 +276,4 @@ jobs:
             logs-servicios.txt
       - name: Bajar stack
         if: always()
-        run: docker compose --profile app down -v
+        run: docker compose --profile app --profile kafka down -v
