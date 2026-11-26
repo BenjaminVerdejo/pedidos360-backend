@@ -68,3 +68,22 @@ lista blanca de rutas y *timeouts* en el BFF, emails enmascarados en logs y log 
 
 Detalle de la mensajeria en [pedidos-service/README.md](pedidos-service/README.md) y de la API
 administradora en [rabbit-admin-service/README.md](rabbit-admin-service/README.md).
+
+## Kafka: streaming de eventos (EP5 DSY1107)
+
+```bash
+docker compose --profile app --profile kafka up -d --build   # todo el sistema
+```
+
+| Componente | Puerto | Rol |
+|---|---|---|
+| zookeeper1..3 | interno | Coordinación del clúster (quórum 2 de 3) |
+| kafka1..3 | 29092-29094 (host) / 9092 (Docker) | Brokers con réplica 3 y min.insync.replicas 2 |
+| kafka-init | – | Crea `pedidos-creados` (delete, 7 días) y `pedidos-estados` (compact), 3 particiones y 3 réplicas, más sus DLT |
+| kafka-ui | 8090 | Administración y monitoreo (brokers, tópicos, mensajes, consumer groups, lag) |
+| **analitica-service** | 8083 | Consumidor (`@KafkaListener`, grupos `analitica` y `auditoria`), métricas en tiempo real, DLT |
+| **kafka-admin-service** | 8084 | API de administración de tópicos, configuraciones y consumer groups (rol Admin) |
+
+`pedidos-service` publica `PedidoCreadoEvento` y `EstadoPedidoCambiadoEvento` en Kafka **además** de RabbitMQ
+(las integraciones existentes no cambian). Detalle completo, diseño de eventos y guion de demostración en
+[docs/kafka.md](docs/kafka.md).
