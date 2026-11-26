@@ -34,6 +34,8 @@ jobs:
       checks: write
     strategy:
       fail-fast: false
+      # maximo 2 builds simultaneos: con 5 en paralelo Maven Central responde 429 (Too Many Requests)
+      max-parallel: 2
       matrix:
         servicio: [pedidos-service, bff-service, rabbit-admin-service, analitica-service, kafka-admin-service]
     defaults:
@@ -173,6 +175,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # maximo 2 builds simultaneos: con 5 en paralelo Maven Central responde 429 (Too Many Requests)
+      max-parallel: 2
       matrix:
         servicio: [pedidos-service, bff-service, rabbit-admin-service, analitica-service, kafka-admin-service]
     steps:

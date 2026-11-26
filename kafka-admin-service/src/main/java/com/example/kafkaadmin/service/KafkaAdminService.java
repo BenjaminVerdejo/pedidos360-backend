@@ -132,7 +132,7 @@ public class KafkaAdminService {
         NewTopic topico = new NewTopic(req.nombre(), req.particiones(), req.replicas()).configs(configs);
         esperar(admin.createTopics(List.of(topico)).all(), "crear topico " + req.nombre());
         auditoria.info("accion=CREAR_TOPICO topico={} particiones={} replicas={} configs={} usuario={}",
-                req.nombre(), req.particiones(), req.replicas(), configs, usuario);
+                paraLog(req.nombre()), req.particiones(), req.replicas(), paraLog(configs.toString()), paraLog(usuario));
         return obtenerTopico(req.nombre());
     }
 
@@ -148,7 +148,8 @@ public class KafkaAdminService {
         ConfigResource recurso = new ConfigResource(ConfigResource.Type.TOPIC, nombre);
         Map<ConfigResource, Collection<AlterConfigOp>> operacion = Map.of(recurso, cambios);
         esperar(admin.incrementalAlterConfigs(operacion).all(), "modificar configuracion de " + nombre);
-        auditoria.info("accion=MODIFICAR_CONFIG topico={} cambios={} usuario={}", nombre, req, usuario);
+        auditoria.info("accion=MODIFICAR_CONFIG topico={} cambios={} usuario={}",
+                paraLog(nombre), paraLog(cambios.toString()), paraLog(usuario));
         return obtenerTopico(nombre);
     }
 
@@ -161,7 +162,7 @@ public class KafkaAdminService {
             throw new IllegalArgumentException("Kafka solo permite aumentar particiones: el topico ya tiene " + actuales);
         }
         esperar(admin.createPartitions(Map.of(nombre, NewPartitions.increaseTo(total))).all(), "aumentar particiones de " + nombre);
-        auditoria.info("accion=AUMENTAR_PARTICIONES topico={} de={} a={} usuario={}", nombre, actuales, total, usuario);
+        auditoria.info("accion=AUMENTAR_PARTICIONES topico={} de={} a={} usuario={}", paraLog(nombre), actuales, total, paraLog(usuario));
         return obtenerTopico(nombre);
     }
 
@@ -170,7 +171,7 @@ public class KafkaAdminService {
             throw new ConflictoException("El topico '" + nombre + "' es parte del sistema y no se puede eliminar");
         }
         esperar(admin.deleteTopics(List.of(nombre)).all(), "eliminar topico " + nombre);
-        auditoria.info("accion=ELIMINAR_TOPICO topico={} usuario={}", nombre, usuario);
+        auditoria.info("accion=ELIMINAR_TOPICO topico={} usuario={}", paraLog(nombre), paraLog(usuario));
     }
 
     // ------------------------------------------------------------- consumer groups
@@ -233,11 +234,24 @@ public class KafkaAdminService {
         Map<TopicPartition, OffsetAndMetadata> nuevos = new HashMap<>();
         offsets.forEach((tp, info) -> nuevos.put(tp, new OffsetAndMetadata(info.offset())));
         esperar(admin.alterConsumerGroupOffsets(grupo, nuevos).all(), "resetear offsets de " + grupo);
-        auditoria.info("accion=RESET_OFFSETS grupo={} topico={} destino={} usuario={}", grupo, req.topico(), req.destino(), usuario);
+        auditoria.info("accion=RESET_OFFSETS grupo={} topico={} destino={} usuario={}",
+                paraLog(grupo), paraLog(req.topico()), paraLog(req.destino()), paraLog(usuario));
         return calcularLag(grupo);
     }
 
     // ------------------------------------------------------------------ apoyo
+
+    /**
+     * Neutraliza valores que vienen del usuario antes de escribirlos en el log (CWE-117, log injection):
+     * reemplaza saltos de linea y caracteres de control para que nadie pueda falsificar lineas de auditoria.
+     */
+    static String paraLog(String valor) {
+        if (valor == null) {
+            return "null";
+        }
+        String limpio = valor.replaceAll("[\\r\\n\\t\\p{Cntrl}]", "_");
+        return limpio.length() > 200 ? limpio.substring(0, 200) + "..." : limpio;
+    }
 
     private static void agregar(List<AlterConfigOp> cambios, String clave, Object valor) {
         if (valor != null) {

@@ -33,7 +33,7 @@ public class GlobalExceptionHandler {
 
     /** Parametros de ruta invalidos (por ejemplo, un nombre de topico con caracteres no permitidos). */
     @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
-    public ResponseEntity<ErrorResponse> parametroInvalido(jakarta.validation.ConstraintViolationException ex) {
+    public ResponseEntity<ErrorResponse> parametroInvalido() {
         return ResponseEntity.badRequest().body(ErrorResponse.de(400, "parametro_invalido", "Nombre de recurso invalido"));
     }
 
@@ -61,7 +61,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ErrorResponse> accesoDenegado(AccessDeniedException ex) {
+    public ResponseEntity<ErrorResponse> accesoDenegado() {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse.de(403, "forbidden", "Se requiere el rol Admin"));
     }
 
