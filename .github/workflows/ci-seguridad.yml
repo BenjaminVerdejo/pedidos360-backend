@@ -42,7 +42,7 @@ jobs:
       run:
         working-directory: ${{ matrix.servicio }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -84,7 +84,7 @@ jobs:
     container:
       image: semgrep/semgrep
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Analisis completo (reporte SARIF)
         run: |
           semgrep scan --metrics=off \
@@ -111,7 +111,7 @@ jobs:
     name: "[3] Secretos - Gitleaks"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # revisa TODO el historial, no solo el ultimo commit
       - name: Instalar Gitleaks
@@ -132,7 +132,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Reporte de dependencias vulnerables
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 (fijada por commit: protege ante tags modificados)
         with:
@@ -180,7 +180,7 @@ jobs:
       matrix:
         servicio: [pedidos-service, bff-service, rabbit-admin-service, analitica-service, kafka-admin-service]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Lint del Dockerfile (Hadolint)
         uses: hadolint/hadolint-action@v3.1.0
         with:
@@ -213,7 +213,7 @@ jobs:
     needs: contenedores
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Generar secretos efimeros para el entorno de prueba
         run: |
           {
