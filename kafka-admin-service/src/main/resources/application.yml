@@ -1,0 +1,47 @@
+server:
+  port: 8084
+  error:
+    include-stacktrace: never
+    include-message: never
+
+spring:
+  application:
+    name: kafka-admin-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/015cad58-1396-4898-9f0a-4cb1e1191c38/v2.0
+          audiences: 82adc866-3948-44f8-993d-5658734ad794
+  # --- Cliente de administracion de Kafka ---
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092,localhost:29093,localhost:29094}
+    client-id: kafka-admin-service
+    admin:
+      fail-fast: false
+      operation-timeout: 10s
+      properties:
+        "[request.timeout.ms]": 10000
+        "[default.api.timeout.ms]": 15000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  admin:
+    timeout-segundos: 10
+    max-particiones: 12
+    # Topicos del sistema: la API no permite eliminarlos (si se puede consultar y ajustar su configuracion)
+    topicos-protegidos:
+      - pedidos-creados
+      - pedidos-estados
+      - pedidos-creados.DLT
+      - pedidos-estados.DLT

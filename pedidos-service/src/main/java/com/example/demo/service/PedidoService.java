@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.dto.PedidoRequest;
 import com.example.demo.exception.TransicionEstadoInvalidaException;
+import com.example.demo.messaging.kafka.PedidoKafkaProducer;
 import com.example.demo.messaging.producer.PedidoEventPublisher;
 import com.example.demo.model.Cliente;
 import com.example.demo.model.EstadoPedido;
@@ -26,13 +27,16 @@ public class PedidoService {
     private final PedidoRepository pedidoRepository;
     private final ClienteRepository clienteRepository;
     private final PedidoEventPublisher eventPublisher;
+    private final PedidoKafkaProducer kafkaProducer;
 
     public PedidoService(PedidoRepository pedidoRepository,
                          ClienteRepository clienteRepository,
-                         PedidoEventPublisher eventPublisher) {
+                         PedidoEventPublisher eventPublisher,
+                         PedidoKafkaProducer kafkaProducer) {
         this.pedidoRepository = pedidoRepository;
         this.clienteRepository = clienteRepository;
         this.eventPublisher = eventPublisher;
+        this.kafkaProducer = kafkaProducer;
     }
 
     @Transactional(readOnly = true)
@@ -67,7 +71,8 @@ public class PedidoService {
         pedido.setFecha(LocalDateTime.now());
 
         Pedido guardado = pedidoRepository.save(pedido);
-        eventPublisher.publicarPedidoCreado(guardado);
+        eventPublisher.publicarPedidoCreado(guardado);   // RabbitMQ: notificacion + ticket
+        kafkaProducer.publicarPedidoCreado(guardado);    // Kafka: streaming para analitica/auditoria
         return guardado;
     }
 
@@ -86,6 +91,7 @@ public class PedidoService {
             p.setEstado(nuevoEstado.name());
             Pedido actualizado = pedidoRepository.save(p);
             eventPublisher.publicarCambioEstado(actualizado);
+            kafkaProducer.publicarCambioEstado(actualizado, actual.name());
             if (nuevoEstado == EstadoPedido.ENTREGADO) {
                 eventPublisher.publicarPedidoEntregado(actualizado);
             }
